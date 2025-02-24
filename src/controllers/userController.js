@@ -4,14 +4,17 @@ import bcrypt from "bcryptjs";
 // Створення користувача (куратор або адміністратор створює)
 export const createUser = async (req, res) => {
   try {
-    const { login, password, role, lastName, firstName, group, createdBy } =
-      req.body;
+    const { login, password, role, lastName, firstName, group } = req.body;
     const existingUser = await User.findOne({ login });
 
     if (existingUser)
       return res.status(400).json({ message: "Користувач вже існує" });
 
     const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Витягнення ID поточного користувача, який створює нового
+    const createdBy = req.user.id; // Поточний користувач із JWT токена
+
     const newUser = new User({
       login,
       password: hashedPassword,
@@ -19,8 +22,9 @@ export const createUser = async (req, res) => {
       lastName,
       firstName,
       group,
-      createdBy,
+      createdBy, // Додаємо createdBy до нового користувача
     });
+
     await newUser.save();
 
     res.status(201).json({ message: "Користувач створений", user: newUser });
