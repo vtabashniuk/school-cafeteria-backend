@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 // Створення користувача (куратор або адміністратор створює)
 export const createUser = async (req, res) => {
   try {
-    const { login, password, role, lastName, firstName, group } = req.body;
+    const { login, password, role, lastName, firstName, group, balance } = req.body;
     const existingUser = await User.findOne({ login });
 
     if (existingUser)
@@ -21,6 +21,7 @@ export const createUser = async (req, res) => {
       role,
       lastName,
       firstName,
+      balance,
       group,
       createdBy, // Додаємо createdBy до нового користувача
     });
