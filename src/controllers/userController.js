@@ -1,16 +1,18 @@
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
+import { hashPassword } from "../utils/hashPassword.js";
 
 // Створення користувача (куратор або адміністратор створює)
 export const createUser = async (req, res) => {
   try {
-    const { login, password, role, lastName, firstName, group, balance } = req.body;
+    const { login, password, role, lastName, firstName, group, balance } =
+      req.body;
     const existingUser = await User.findOne({ login });
 
     if (existingUser)
       return res.status(400).json({ message: "Користувач вже існує" });
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await hashPassword(password);
 
     // Витягнення ID поточного користувача, який створює нового
     const createdBy = req.user.id; // Поточний користувач із JWT токена
@@ -37,6 +39,10 @@ export const createUser = async (req, res) => {
 // Отримання списку користувачів (тільки адміністратори та куратори)
 export const getUsers = async (req, res) => {
   try {
+    if (req.user.role === "student") {
+      return res.status(403).json({ message: "Недостатньо прав" });
+    }
+
     const users = await User.find().select("-password");
     res.json(users);
   } catch (error) {
@@ -48,7 +54,7 @@ export const getUsers = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { role, balance, password, login, ...updates } = req.body; // Виключаємо зміну пароля та балансу
+    const { role, password, login, ...updates } = req.body; // Виключаємо зміну пароля
     const userId = req.user.id;
     const userRole = req.user.role;
 
@@ -120,7 +126,7 @@ export const changePassword = async (req, res) => {
         return res.status(400).json({ message: "Невірний старий пароль" });
     }
 
-    user.password = await bcrypt.hash(newPassword, 12);
+    user.password = await hashPassword(newPassword);
     await user.save();
     res.json({ message: "Пароль успішно змінено" });
   } catch (error) {
@@ -131,7 +137,7 @@ export const changePassword = async (req, res) => {
 export const updateBalance = async (req, res) => {
   try {
     const { id } = req.params;
-    const { balance } = req.body;
+    const { newBalance } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
 
@@ -146,11 +152,18 @@ export const updateBalance = async (req, res) => {
       });
     }
 
+    // Значення балансу не може бути менше ніж -200
+    if (newBalance < -200) {
+      return res
+        .status(400)
+        .json({ message: "Баланс не може бути менше -200" });
+    }
+
     // Оновлення балансу
-    user.balance = balance;
+    user.balance = newBalance;
     await user.save();
 
-    res.json({ message: "Баланс оновлено", balance: user.balance });
+    res.json({ message: "Баланс оновлено" });
   } catch (error) {
     res.status(500).json({ message: "Помилка сервера" });
   }
@@ -178,7 +191,7 @@ export const setPassword = async (req, res) => {
     }
 
     // Хешування нового пароля
-    user.password = await bcrypt.hash(newPassword, 12);
+    user.password = await hashPassword(newPassword);
     await user.save();
 
     res.json({ message: "Пароль успішно встановлено" });

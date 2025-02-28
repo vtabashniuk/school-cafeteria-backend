@@ -8,3 +8,7 @@ export const checkRole = (roles) => (req, res, next) => {
     res.status(500).json({ message: "Помилка перевірки ролі" });
   }
 };
+
+export const checkAdminOrCurator = checkRole(["admin", "curator"]);
+
+export const checkCuratorOrStudent = checkRole(["curator", "student"]);
