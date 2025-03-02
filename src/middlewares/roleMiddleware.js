@@ -12,3 +12,5 @@ export const checkRole = (roles) => (req, res, next) => {
 export const checkAdminOrCurator = checkRole(["admin", "curator"]);
 
 export const checkCuratorOrStudent = checkRole(["curator", "student"]);
+
+export const checkAllUsers = checkRole(["admin", "curator", "student"]);

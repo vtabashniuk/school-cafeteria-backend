@@ -99,18 +99,21 @@ export const updateUser = async (req, res) => {
 
 export const changePassword = async (req, res) => {
   try {
-    const { id } = req.params;
     const { oldPassword, newPassword } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    const user = await User.findById(id);
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: "Всі поля мають бути заповнені" });
+    }
+
+    const user = await User.findById(userId);
     if (!user)
       return res.status(404).json({ message: "Користувача не знайдено" });
 
     // Якщо змінює пароль не власник - перевірка прав
     if (
-      userId !== id &&
+      userId !== user._id.toString() &&
       userRole !== "admin" &&
       (userRole !== "curator" || user.createdBy?.toString() !== userId)
     ) {
@@ -120,7 +123,7 @@ export const changePassword = async (req, res) => {
     }
 
     // Якщо користувач сам змінює пароль, потрібно перевірити старий пароль
-    if (userId === id) {
+    if (userId === user._id.toString()) {
       const isMatch = await bcrypt.compare(oldPassword, user.password);
       if (!isMatch)
         return res.status(400).json({ message: "Невірний старий пароль" });
