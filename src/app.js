@@ -17,7 +17,7 @@ app.use(json());
 // API маршрути
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/menu", menuRoutes);
+app.use("/api/menus", menuRoutes);
 app.use("/api/orders", orderRoutes);
 
 // Підключення до MongoDB
