@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema(
     balance: { type: Number, default: 0 },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     isActive: { type: Boolean, default: true },
+    isBeneficiaries: {type: Boolean, default: false},
   },
   { timestamps: true }
 );
