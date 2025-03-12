@@ -5,8 +5,16 @@ import { hashPassword } from "../utils/hashPassword.js";
 // Створення користувача (куратор або адміністратор створює)
 export const createUser = async (req, res) => {
   try {
-    const { login, password, role, lastName, firstName, group, balance, isBeneficiaries } =
-      req.body;
+    const {
+      login,
+      password,
+      role,
+      lastName,
+      firstName,
+      group,
+      balance,
+      isBeneficiaries,
+    } = req.body;
     const existingUser = await User.findOne({ login });
 
     if (existingUser)
@@ -25,8 +33,8 @@ export const createUser = async (req, res) => {
       firstName,
       balance,
       group,
-      createdBy,// Додаємо createdBy до нового користувача
-      isBeneficiaries, 
+      createdBy, // Додаємо createdBy до нового користувача
+      isBeneficiaries, // Додаємо признак пільговика
     });
 
     await newUser.save();
