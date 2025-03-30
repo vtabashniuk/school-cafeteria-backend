@@ -48,6 +48,30 @@ export const getMenu = async (req, res) => {
   }
 };
 
+// Отримання меню для сьогоднішнього дня
+export const getMenuForToday = async (req, res) => {
+  try {
+    // Отримуємо поточну дату без часу
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Обнуляємо час
+
+    // Створюємо дату на наступний день
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+
+    // Запит до MongoDB для отримання страв на сьогодні
+    const todayMenu = await Menu.find({
+      date: { $gte: today, $lt: tomorrow },
+    });
+
+    // Відправляємо результат
+    res.status(200).json(todayMenu);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Щось пішло не так!" });
+  }
+};
+
 // Оновлення страви (тільки куратори)
 export const updateDish = async (req, res) => {
   try {
