@@ -1,19 +1,19 @@
 import Menu from "../models/Menu.js";
 
-// // Додавання страви в меню (тільки куратори)
-// export const createDish = async (req, res) => {
-//   try {
-//     const { date, dishName, price } = req.body;
-//     const newDish = new Menu({ date, dishName, price });
-//     await newDish.save();
+// Додавання страви в меню (тільки куратори)
+export const createFreeSaleDish = async (req, res) => {
+  try {
+    const { date, dishName, price, isFreeSale } = req.body;
+    const newDish = new Menu({ date, dishName, price, isFreeSale });
+    await newDish.save();
 
-//     res.status(201).json({ message: "Страва додана до меню!", item: newDish });
-//   } catch (error) {
-//     res
-//       .status(500)
-//       .json({ message: "Помилка при додаванні страви!", error: error.message });
-//   }
-// };
+    res.status(201).json({ message: "Страва додана до меню!", item: newDish });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Помилка при додаванні страви!", error: error.message });
+  }
+};
 
 export const createDish = async (req, res) => {
   try {
