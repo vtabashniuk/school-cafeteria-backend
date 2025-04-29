@@ -24,8 +24,10 @@ export const register = async (req, res) => {
       role,
       lastName,
       firstName,
+      balance,
       group,
-      createdBy,
+      createdBy, // Додаємо createdBy до нового користувача
+      isBeneficiaries, // Додаємо признак пільговика
     });
 
     await newUser.save();
@@ -45,14 +47,22 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Користувач не знайдений" });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch)
-      return res.status(400).json({ message: "Невірний пароль" });
+    if (!isMatch) return res.status(400).json({ message: "Невірний пароль" });
 
     const token = generateToken(user._id, user.role);
 
     res.json({
       token,
-      user: { id: user._id, role: user.role, login: user.login },
+      user: {
+        id: user._id,
+        login: user.login,
+        role: user.role,
+        lastName: user.lastName,
+        firstName: user.firstName,
+        balance: user.balance,
+        group: user.group,
+        isBeneficiaries: user.isBeneficiaries
+      },
     });
   } catch (error) {
     res.status(500).json({ message: "Помилка сервера" });
