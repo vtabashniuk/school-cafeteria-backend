@@ -22,6 +22,7 @@ const orderSchema = new mongoose.Schema(
       },
     ],
     total: { type: Number, required: true },
+    isBeneficiaryOrder: { type: Boolean, default: false },
   },
   {
     timestamps: true, // додає createdAt і updatedAt

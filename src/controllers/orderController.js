@@ -4,15 +4,84 @@ import Menu from "../models/Menu.js";
 
 export const createOrder = async (req, res) => {
   try {
-    const { items } = req.body;
+    const { items, isBeneficiaryOrder } = req.body;
     const studentId = req.user.id;
 
-    // Отримуємо ID страв та їх кількість
+    const student = await User.findById(studentId);
+    if (!student) {
+      return res.status(404).json({ message: "Користувача не знайдено" });
+    }
+
+    // Перевірка замовлень за сьогодні
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const todayOrders = await Order.find({
+      studentId,
+      createdAt: { $gte: todayStart, $lte: todayEnd },
+    });
+
+    const hasBeneficiaryOrder = todayOrders.some(
+      (order) => order.isBeneficiaryOrder
+    );
+    const hasRegularOrder = todayOrders.some(
+      (order) => !order.isBeneficiaryOrder
+    );
+
+    // Логіка для пільгового замовлення
+    if (isBeneficiaryOrder) {
+      if (!student.isBeneficiaries) {
+        return res
+          .status(403)
+          .json({
+            message: "Тільки пільговики можуть створювати пільгові замовлення",
+          });
+      }
+      if (hasBeneficiaryOrder) {
+        return res
+          .status(400)
+          .json({ message: "Пільгове замовлення на сьогодні вже створено" });
+      }
+
+      const order = new Order({
+        studentId,
+        items: [],
+        total: 0,
+        isBeneficiaryOrder: true,
+      });
+      await order.save();
+      return res.status(201).json(order);
+    }
+
+    // Логіка для звичайного замовлення
+    if (hasRegularOrder) {
+      return res
+        .status(400)
+        .json({ message: "Звичайне замовлення на сьогодні вже створено" });
+    }
+
+    // Перевірка страв
     const itemIds = items.map((item) => item.dishId);
     const menuItems = await Menu.find({ _id: { $in: itemIds } });
 
     if (menuItems.length !== items.length) {
       return res.status(400).json({ message: "Деякі страви не знайдено" });
+    }
+
+    // Перевірка для пільговиків: лише isFreeSale: true
+    if (student.isBeneficiaries) {
+      const hasNonFreeSaleItems = items.some((item) => {
+        const dish = menuItems.find((d) => d._id.toString() === item.dishId);
+        return dish && !dish.isFreeSale;
+      });
+
+      if (hasNonFreeSaleItems) {
+        return res.status(400).json({
+          message: "Пільговики можуть замовляти лише страви з вільного продажу",
+        });
+      }
     }
 
     // Формуємо замовлення та розраховуємо загальну вартість
@@ -35,10 +104,9 @@ export const createOrder = async (req, res) => {
       })
       .filter(Boolean);
 
-    // Отримуємо користувача
-    const student = await User.findById(studentId);
-    if (!student)
-      return res.status(404).json({ message: "Користувача не знайдено" });
+    if (orderItems.length === 0) {
+      return res.status(400).json({ message: "Не вибрано жодної страви" });
+    }
 
     // Перевірка балансу
     if (student.balance - total < -200) {
@@ -54,11 +122,13 @@ export const createOrder = async (req, res) => {
       studentId,
       items: orderItems,
       total,
+      isBeneficiaryOrder: false,
     });
 
     await order.save();
     res.status(201).json(order);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Помилка сервера" });
   }
 };
@@ -66,21 +136,27 @@ export const createOrder = async (req, res) => {
 export const deleteOrder = async (req, res) => {
   try {
     const orderId = req.params.id;
-    console.log("Order ID from params: ", orderId);
+    const studentId = req.user.id;
 
     const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).json({ message: "Замовлення не знайдено" });
     }
 
-    // Використовуємо deleteOne() для видалення
-    await order.deleteOne(); // або await Order.findByIdAndDelete(orderId);
+    if (order.studentId.toString() !== studentId) {
+      return res
+        .status(403)
+        .json({ message: "Немає доступу до видалення цього замовлення" });
+    }
 
-    // Повернення коштів на баланс користувача
-    const student = await User.findById(order.studentId);
-    student.balance += order.total;
-    await student.save();
+    // Повернення коштів на баланс користувача, якщо це звичайне замовлення
+    if (!order.isBeneficiaryOrder) {
+      const student = await User.findById(order.studentId);
+      student.balance += order.total;
+      await student.save();
+    }
 
+    await order.deleteOne();
     res.status(200).json({ message: "Замовлення видалено успішно" });
   } catch (error) {
     console.error(error);
@@ -107,10 +183,15 @@ export const updateOrder = async (req, res) => {
         .json({ message: "Немає доступу до редагування цього замовлення" });
     }
 
-    // 🧹 Фільтруємо лише ті страви, у яких кількість > 0
+    if (order.isBeneficiaryOrder) {
+      return res
+        .status(400)
+        .json({ message: "Пільгове замовлення не можна редагувати" });
+    }
+
+    // Фільтруємо лише ті страви, у яких кількість > 0
     const filteredItems = items.filter((item) => item.quantity > 0);
 
-    // Якщо після фільтрації нічого не лишилось — відмовляємось від оновлення
     if (filteredItems.length === 0) {
       return res
         .status(400)
@@ -122,6 +203,21 @@ export const updateOrder = async (req, res) => {
 
     if (menuItems.length !== filteredItems.length) {
       return res.status(400).json({ message: "Деякі страви не знайдено" });
+    }
+
+    // Перевірка для пільговиків: лише isFreeSale: true
+    const student = await User.findById(studentId);
+    if (student.isBeneficiaries) {
+      const hasNonFreeSaleItems = filteredItems.some((item) => {
+        const dish = menuItems.find((d) => d._id.toString() === item.dishId);
+        return dish && !dish.isFreeSale;
+      });
+
+      if (hasNonFreeSaleItems) {
+        return res.status(400).json({
+          message: "Пільговики можуть замовляти лише страви з вільного продажу",
+        });
+      }
     }
 
     let newTotal = 0;
@@ -138,7 +234,6 @@ export const updateOrder = async (req, res) => {
       };
     });
 
-    const student = await User.findById(studentId);
     if (!student) {
       return res.status(404).json({ message: "Користувача не знайдено" });
     }
