@@ -41,7 +41,7 @@ export const createUser = async (req, res) => {
       firstName,
       balance,
       group,
-      groups: role === "curator" ? groups : [], // для куратора вибір кількох груп
+      groups: role === "curator" ? [...(groups || [])].sort() : [], // для куратора вибір кількох груп
       createdBy, // Додаємо createdBy до нового користувача
       isBeneficiaries, // Додаємо признак пільговика
     });
@@ -67,13 +67,14 @@ export const getUsers = async (req, res) => {
   }
 };
 
-// Редагування користувача (Адмін для всіх куратори для учнів)
+// Редагування користувача (Адмін для всіх, куратори для учнів із відповідною групою)
 export const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
     const { role, password, login, ...updates } = req.body; // Виключаємо зміну пароля
     const userId = req.user.id;
     const userRole = req.user.role;
+    const curatorGroups = req.user.groups || []; // Групи куратора з JWT токена
 
     const userToUpdate = await User.findById(id);
     if (!userToUpdate) {
@@ -81,13 +82,16 @@ export const updateUser = async (req, res) => {
     }
 
     // Перевірка прав доступу
-    if (
-      userRole !== "admin" &&
-      (userRole !== "curator" || userToUpdate.createdBy?.toString() !== userId)
-    ) {
-      return res.status(403).json({
-        message: "Недостатньо прав для редагування цього користувача",
-      });
+    if (userRole !== "admin") {
+      if (
+        userRole !== "curator" ||
+        userToUpdate.role !== "student" ||
+        !curatorGroups.includes(userToUpdate.group)
+      ) {
+        return res.status(403).json({
+          message: "Недостатньо прав для редагування цього користувача",
+        });
+      }
     }
 
     // Адмін не може міняти роль користувача через цей запит
@@ -106,6 +110,11 @@ export const updateUser = async (req, res) => {
       userToUpdate.login = login;
     }
 
+    // Сортуємо groups за алфавітом для куратора
+    if (userToUpdate.role === "curator" && updates.groups) {
+      updates.groups = [...(updates.groups || [])].sort();
+    }
+
     Object.assign(userToUpdate, updates);
     await userToUpdate.save();
     res.json({ message: "Дані користувача оновлено", user: userToUpdate });
@@ -114,11 +123,13 @@ export const updateUser = async (req, res) => {
   }
 };
 
+// Зміна пароля
 export const changePassword = async (req, res) => {
   try {
     const { oldPassword, newPassword } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
+    const curatorGroups = req.user.groups || []; // Групи куратора
 
     if (!oldPassword || !newPassword) {
       return res.status(400).json({ message: "Всі поля мають бути заповнені" });
@@ -129,14 +140,17 @@ export const changePassword = async (req, res) => {
       return res.status(404).json({ message: "Користувача не знайдено" });
 
     // Якщо змінює пароль не власник - перевірка прав
-    if (
-      userId !== user._id.toString() &&
-      userRole !== "admin" &&
-      (userRole !== "curator" || user.createdBy?.toString() !== userId)
-    ) {
-      return res
-        .status(403)
-        .json({ message: "Недостатньо прав для зміни пароля" });
+    if (userId !== user._id.toString()) {
+      if (
+        userRole !== "admin" &&
+        (userRole !== "curator" ||
+          user.role !== "student" ||
+          !curatorGroups.includes(user.group))
+      ) {
+        return res
+          .status(403)
+          .json({ message: "Недостатньо прав для зміни пароля" });
+      }
     }
 
     // Якщо користувач сам змінює пароль, потрібно перевірити старий пароль
@@ -154,21 +168,31 @@ export const changePassword = async (req, res) => {
   }
 };
 
+// Оновлення балансу
 export const updateBalance = async (req, res) => {
   try {
     const { id } = req.params;
     const { newBalance, reason } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
+    const curatorGroups = req.user.groups || []; // Групи куратора
 
     const user = await User.findById(id);
     if (!user)
       return res.status(404).json({ message: "Користувача не знайдено" });
 
-    // Учень може змінювати лише свій баланс
+    // Перевірка прав доступу
     if (userRole === "student" && userId !== id) {
       return res.status(403).json({
         message: "Недостатньо прав для зміни балансу іншого користувача",
+      });
+    }
+    if (
+      userRole === "curator" &&
+      (user.role !== "student" || !curatorGroups.includes(user.group))
+    ) {
+      return res.status(403).json({
+        message: "Недостатньо прав для зміни балансу цього користувача",
       });
     }
 
@@ -198,25 +222,30 @@ export const updateBalance = async (req, res) => {
   }
 };
 
+// Встановлення пароля
 export const setPassword = async (req, res) => {
   try {
     const { id } = req.params;
     const { newPassword } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
+    const curatorGroups = req.user.groups || []; // Групи куратора
 
     const user = await User.findById(id);
     if (!user)
       return res.status(404).json({ message: "Користувача не знайдено" });
 
     // Перевірка прав доступу
-    if (
-      userRole !== "admin" &&
-      (userRole !== "curator" || user.createdBy?.toString() !== userId)
-    ) {
-      return res.status(403).json({
-        message: "Недостатньо прав для зміни пароля цього користувача",
-      });
+    if (userRole !== "admin") {
+      if (
+        userRole !== "curator" ||
+        user.role !== "student" ||
+        !curatorGroups.includes(user.group)
+      ) {
+        return res.status(403).json({
+          message: "Недостатньо прав для зміни пароля цього користувача",
+        });
+      }
     }
 
     // Хешування нового пароля
@@ -240,7 +269,7 @@ export const deleteUser = async (req, res) => {
   }
 };
 
-// отримання історії зміни балансу
+// Отримання історії зміни балансу
 export const getBalanceHistory = async (req, res) => {
   try {
     const { id } = req.params;
