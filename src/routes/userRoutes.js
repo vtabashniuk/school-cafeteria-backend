@@ -2,6 +2,7 @@ import express from "express";
 import {
   createUser,
   getUsers,
+  getBalanceHistory,
   updateBalance,
   updateUser,
   deleteUser,
@@ -23,8 +24,9 @@ router.post("/", checkAdminOrCurator, createUser);
 router.get("/", checkAdminOrCurator, getUsers);
 router.put("/changepassword", checkAllUsers, changePassword);
 router.put("/:id", checkAdminOrCurator, updateUser);
-router.put("/:id/updatebalance", checkCuratorOrStudent, updateBalance);
+router.get("/:id/balance-history", checkAllUsers, getBalanceHistory);
 router.put("/:id/setpassword", checkAdminOrCurator, setPassword);
+router.put("/:id/updatebalance", checkCuratorOrStudent, updateBalance);
 router.delete("/:id", checkAdminOrCurator, deleteUser);
 
 export default router;

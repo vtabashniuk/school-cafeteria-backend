@@ -115,6 +115,12 @@ export const createOrder = async (req, res) => {
 
     // Віднімаємо кошти
     student.balance -= total;
+    student.balanceHistory.push({
+      amount: -total,
+      newBalance: student.balance,
+      changedBy: student._id,
+      reason: `Замовлення - ${new Date().toLocaleDateString("uk-UA")}`,
+    });
     await student.save();
 
     // Створюємо замовлення
@@ -153,6 +159,14 @@ export const deleteOrder = async (req, res) => {
     if (!order.isBeneficiaryOrder) {
       const student = await User.findById(order.studentId);
       student.balance += order.total;
+      student.balanceHistory.push({
+        amount: order.total,
+        newBalance: student.balance,
+        changedBy: student._id,
+        reason: `Відмова від замовлення - ${new Date().toLocaleDateString(
+          "uk-UA"
+        )}`,
+      });
       await student.save();
     }
 
@@ -248,6 +262,14 @@ export const updateOrder = async (req, res) => {
     }
 
     student.balance = newBalance;
+    student.balanceHistory.push({
+      amount: order.total - newTotal, // наприклад: -50 + 40 = -10 (баланс зменшився на 10)
+      newBalance: student.balance,
+      changedBy: student._id,
+      reason: `Редагування замовлення - ${new Date().toLocaleDateString(
+        "uk-UA"
+      )}`,
+    });
     await student.save();
 
     order.items = updatedItems;

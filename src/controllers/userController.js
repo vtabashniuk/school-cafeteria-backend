@@ -12,9 +12,11 @@ export const createUser = async (req, res) => {
       lastName,
       firstName,
       group,
+      groups,
       balance,
       isBeneficiaries,
     } = req.body;
+
     const existingUser = await User.findOne({ login });
 
     if (existingUser)
@@ -25,6 +27,12 @@ export const createUser = async (req, res) => {
     // Витягнення ID поточного користувача, який створює нового
     const createdBy = req.user.id; // Поточний користувач із JWT токена
 
+    if (role === "curator" && req.user.role !== "admin") {
+      return res
+        .status(403)
+        .json({ message: "Тільки адміністратор може створити куратора" });
+    }
+
     const newUser = new User({
       login,
       password: hashedPassword,
@@ -33,12 +41,12 @@ export const createUser = async (req, res) => {
       firstName,
       balance,
       group,
+      groups: role === "curator" ? groups : [], // для куратора вибір кількох груп
       createdBy, // Додаємо createdBy до нового користувача
       isBeneficiaries, // Додаємо признак пільговика
     });
 
     await newUser.save();
-
     res.status(201).json({ message: "Користувач створений", user: newUser });
   } catch (error) {
     res.status(500).json({ message: "Помилка сервера" });
@@ -149,7 +157,7 @@ export const changePassword = async (req, res) => {
 export const updateBalance = async (req, res) => {
   try {
     const { id } = req.params;
-    const { newBalance } = req.body;
+    const { newBalance, reason } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
 
@@ -170,6 +178,15 @@ export const updateBalance = async (req, res) => {
         .status(400)
         .json({ message: "Баланс не може бути менше -200" });
     }
+
+    // Історія зміни балансу
+    const delta = newBalance - user.balance;
+    user.balanceHistory.push({
+      amount: delta,
+      newBalance,
+      changedBy: userId,
+      reason: reason || "Зміна балансу",
+    });
 
     // Оновлення балансу
     user.balance = newBalance;
@@ -218,6 +235,34 @@ export const deleteUser = async (req, res) => {
     const { id } = req.params;
     await User.findByIdAndDelete(id);
     res.json({ message: "Користувач видалений" });
+  } catch (error) {
+    res.status(500).json({ message: "Помилка сервера" });
+  }
+};
+
+// отримання історії зміни балансу
+export const getBalanceHistory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUser = req.user;
+
+    const user = await User.findById(id).populate(
+      "balanceHistory.changedBy",
+      "lastName firstName role"
+    );
+
+    if (!user)
+      return res.status(404).json({ message: "Користувача не знайдено" });
+
+    if (
+      currentUser.role !== "admin" &&
+      currentUser.role !== "curator" &&
+      currentUser.id !== id
+    ) {
+      return res.status(403).json({ message: "Недостатньо прав" });
+    }
+
+    res.json(user.balanceHistory);
   } catch (error) {
     res.status(500).json({ message: "Помилка сервера" });
   }
