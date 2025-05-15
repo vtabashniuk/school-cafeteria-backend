@@ -31,12 +31,12 @@ export const getTodayOrdersReportByGroup = async (req, res) => {
     // Формуємо результат для відповіді
     const result = orders.map((order) => {
       const student = order.studentId;
-      const dishes = order.items.map((item) => item.dishName).join(", "); // перетворюємо список страв в рядок
+      const dishes = order.items.map((item) => item.dishName).join("; "); // перетворюємо список страв в рядок
       return {
         lastName: student.lastName,
         firstName: student.firstName,
         group: student.group,
-        date: order.date.toISOString(),
+        date: order.date.toLocaleDateString(),
         total: order.total,
         dishes,
       };
@@ -114,7 +114,7 @@ export const getTodayOrdersReportForCafeteriaByGroup = async (req, res) => {
 
     // формуємо результат
     const report = {
-      date: today.toISOString(), // форматуємо дату
+      date: today.toLocaleDateString(), // форматуємо дату
       beneficiaryOrders: totalBeneficiaryOrders,
       freeSaleDishes: Object.keys(freeSaleDishes).map((dishName) => ({
         dishName,
@@ -131,7 +131,7 @@ export const getTodayOrdersReportForCafeteriaByGroup = async (req, res) => {
       total: totalSum,
     };
 
-    res.json(report); // Відправляємо результат
+    res.json(report);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Помилка сервера" });
