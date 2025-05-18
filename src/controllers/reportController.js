@@ -137,3 +137,100 @@ export const getTodayOrdersReportForCafeteriaByGroup = async (req, res) => {
     res.status(500).json({ message: "Помилка сервера" });
   }
 };
+
+export const getPeriodOrdersReportForCafeteriaByGroup = async (req, res) => {
+  const { group, fromDate, toDate } = req.query;
+
+  // Валідація параметрів
+  if (!group || !fromDate || !toDate) {
+    return res
+      .status(400)
+      .json({ message: "Необхідно вказати групу та діапазон дат" });
+  }
+
+  // Парсимо дати
+  const startDate = new Date(fromDate);
+  const endDate = new Date(toDate);
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(23, 59, 59, 999);
+
+  if (isNaN(startDate) || isNaN(endDate)) {
+    return res.status(400).json({ message: "Неправильний формат дати" });
+  }
+
+  try {
+    // Отримуємо всіх студентів вказаної групи
+    const students = await User.find({ group, role: "student" });
+
+    if (students.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Студентів цієї групи не знайдено" });
+    }
+
+    // Отримуємо всі замовлення за період
+    const orders = await Order.find({
+      studentId: { $in: students.map((student) => student._id) },
+      date: { $gte: startDate, $lte: endDate },
+    })
+      .populate("items.dishId", "dishName price isFreeSale")
+      .exec();
+
+    let totalBeneficiaryOrders = 0;
+    let freeSaleDishes = {};
+    let paidDishes = {};
+    let totalSum = 0;
+
+    orders.forEach((order) => {
+      totalSum += order.total;
+
+      if (order.isBeneficiaryOrder) {
+        totalBeneficiaryOrders++;
+      }
+
+      order.items.forEach((item) => {
+        const dish = item.dishId.dishName;
+        const price = item.price;
+        const quantity = item.quantity;
+        const totalDishPrice = price * quantity;
+
+        const targetDishSummary = item.isFreeSale ? freeSaleDishes : paidDishes;
+
+        if (targetDishSummary[dish]) {
+          targetDishSummary[dish].quantity += quantity;
+          targetDishSummary[dish].totalPrice += totalDishPrice;
+        } else {
+          targetDishSummary[dish] = {
+            price,
+            quantity,
+            totalPrice: totalDishPrice,
+          };
+        }
+      });
+    });
+
+    // Формуємо результат
+    const report = {
+      dateRange: [startDate.toLocaleDateString(), endDate.toLocaleDateString()],
+      beneficiaryOrders: totalBeneficiaryOrders,
+      freeSaleDishes: Object.keys(freeSaleDishes).map((dishName) => ({
+        dishName,
+        price: freeSaleDishes[dishName].price,
+        quantity: freeSaleDishes[dishName].quantity,
+        totalPrice: freeSaleDishes[dishName].totalPrice,
+      })),
+      paidDishes: Object.keys(paidDishes).map((dishName) => ({
+        dishName,
+        price: paidDishes[dishName].price,
+        quantity: paidDishes[dishName].quantity,
+        totalPrice: paidDishes[dishName].totalPrice,
+      })),
+      total: totalSum,
+    };
+
+    res.json(report);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Помилка сервера" });
+  }
+};
