@@ -1,6 +1,7 @@
 import express from "express";
 import {
   getTodayOrdersReportByGroup,
+  getPeriodOrdersReportByGroup,
   getTodayOrdersReportForCafeteriaByGroup,
   getPeriodOrdersReportForCafeteriaByGroup,
 } from "../controllers/reportController.js";
@@ -14,6 +15,12 @@ router.get(
   protect,
   checkRole(["curator"]),
   getTodayOrdersReportByGroup
+);
+router.get(
+  "/period-report-by-group",
+  protect,
+  checkRole(["curator"]),
+  getPeriodOrdersReportByGroup
 );
 router.get(
   "/today-report-for-cafeteria",

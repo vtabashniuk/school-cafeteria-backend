@@ -1,6 +1,6 @@
 import Order from "../models/Order.js";
 import User from "../models/User.js";
-import Menu from "../models/Menu.js";
+// import Menu from "../models/Menu.js";
 
 const formatDate = (date) => {
   const day = String(date.getDate()).padStart(2, "0");
@@ -47,6 +47,69 @@ export const getTodayOrdersReportByGroup = async (req, res) => {
     });
 
     res.json(result);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Помилка сервера" });
+  }
+};
+
+export const getPeriodOrdersReportByGroup = async (req, res) => {
+  const { group, fromDate, toDate } = req.query;
+
+  if (!group || !fromDate || !toDate) {
+    return res
+      .status(400)
+      .json({ message: "Необхідно вказати групу та діапазон дат" });
+  }
+
+  const startDate = new Date(fromDate);
+  const endDate = new Date(toDate);
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(23, 59, 59, 999);
+
+  if (isNaN(startDate) || isNaN(endDate)) {
+    return res.status(400).json({ message: "Неправильний формат дати" });
+  }
+
+  try {
+    const students = await User.find({ group, role: "student" });
+
+    if (students.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Студентів цієї групи не знайдено" });
+    }
+
+    const orders = await Order.find({
+      studentId: { $in: students.map((student) => student._id) },
+      date: { $gte: startDate, $lte: endDate },
+    })
+      .populate("studentId", "firstName lastName group")
+      .populate("items.dishId", "dishName")
+      .exec();
+
+    const ordersByDate = {};
+    orders.forEach((order) => {
+      const dateKey = formatDate(order.date);
+      if (!ordersByDate[dateKey]) {
+        ordersByDate[dateKey] = [];
+      }
+      const student = order.studentId;
+      const dishes = order.items.map((item) => item.dishName).join("; ");
+      ordersByDate[dateKey].push({
+        lastName: student.lastName,
+        firstName: student.firstName,
+        group: student.group,
+        date: dateKey,
+        total: order.total,
+        dishes,
+      });
+    });
+
+    res.json({
+      dateRange: [formatDate(startDate), formatDate(endDate)],
+      ordersByDate,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Помилка сервера" });
