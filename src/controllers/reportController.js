@@ -288,3 +288,66 @@ export const getPeriodOrdersReportForCafeteriaByGroup = async (req, res) => {
     res.status(500).json({ message: "Помилка сервера" });
   }
 };
+
+export const getBalanceHistoryReportByGroup = async (req, res) => {
+  const { group, fromDate, toDate } = req.query;
+
+  if (!group || !fromDate || !toDate) {
+    return res
+      .status(400)
+      .json({ message: "Необхідно вказати групу та діапазон дат" });
+  }
+
+  const startDate = new Date(fromDate);
+  const endDate = new Date(toDate);
+  startDate.setHours(0, 0, 0, 0);
+  endDate.setHours(23, 59, 59, 999);
+
+  if (isNaN(startDate) || isNaN(endDate)) {
+    return res.status(400).json({ message: "Неправильний формат дати" });
+  }
+
+  try {
+    const students = await User.find({ group, role: "student" }).populate(
+      "balanceHistory.changedBy",
+      "firstName lastName"
+    );
+
+    if (students.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Студентів цієї групи не знайдено" });
+    }
+
+    const balanceHistoryByDate = {};
+    students.forEach((student) => {
+      student.balanceHistory.forEach((entry) => {
+        if (entry.date >= startDate && entry.date <= endDate) {
+          const dateKey = formatDate(entry.date);
+          if (!balanceHistoryByDate[dateKey]) {
+            balanceHistoryByDate[dateKey] = [];
+          }
+          balanceHistoryByDate[dateKey].push({
+            lastName: student.lastName,
+            firstName: student.firstName,
+            amount: entry.amount,
+            newBalance: entry.newBalance,
+            changedBy: entry.changedBy
+              ? `${entry.changedBy.firstName} ${entry.changedBy.lastName}`
+              : "Невідомо",
+            reason: entry.reason || "Без причини",
+            date: dateKey,
+          });
+        }
+      });
+    });
+
+    res.json({
+      dateRange: [formatDate(startDate), formatDate(endDate)],
+      balanceHistoryByDate,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Помилка сервера" });
+  }
+};

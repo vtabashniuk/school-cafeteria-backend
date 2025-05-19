@@ -4,6 +4,7 @@ import {
   getPeriodOrdersReportByGroup,
   getTodayOrdersReportForCafeteriaByGroup,
   getPeriodOrdersReportForCafeteriaByGroup,
+  getBalanceHistoryReportByGroup,
 } from "../controllers/reportController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
@@ -33,6 +34,12 @@ router.get(
   protect,
   checkRole(["curator"]),
   getPeriodOrdersReportForCafeteriaByGroup
+);
+router.get(
+  "/balance-history-report-by-group",
+  protect,
+  checkRole(["curator"]),
+  getBalanceHistoryReportByGroup
 );
 
 export default router;
