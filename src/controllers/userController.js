@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import { hashPassword } from "../utils/hashPassword.js";
@@ -170,19 +171,51 @@ export const changePassword = async (req, res) => {
 
 // Оновлення балансу
 export const updateBalance = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const { id } = req.params;
     const { newBalance, reason } = req.body;
     const userId = req.user.id;
     const userRole = req.user.role;
-    const curatorGroups = req.user.groups || []; // Групи куратора
+    const curatorGroups = req.user.groups || [];
 
-    const user = await User.findById(id);
-    if (!user)
+    // Валідація вхідних даних
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Некоректний ID користувача" });
+    }
+
+    if (typeof newBalance !== "number" || isNaN(newBalance)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "newBalance має бути числом" });
+    }
+
+    if (reason && typeof reason !== "string") {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "reason має бути рядком" });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(400).json({ message: "Некоректний ID ініціатора" });
+    }
+
+    const user = await User.findById(id).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Користувача не знайдено" });
+    }
 
     // Перевірка прав доступу
     if (userRole === "student" && userId !== id) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(403).json({
         message: "Недостатньо прав для зміни балансу іншого користувача",
       });
@@ -191,34 +224,52 @@ export const updateBalance = async (req, res) => {
       userRole === "curator" &&
       (user.role !== "student" || !curatorGroups.includes(user.group))
     ) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(403).json({
         message: "Недостатньо прав для зміни балансу цього користувача",
       });
     }
 
-    // Значення балансу не може бути менше ніж -200
+    // Перевірка ліміту балансу
     if (newBalance < -200) {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(400)
         .json({ message: "Баланс не може бути менше -200" });
     }
 
-    // Історія зміни балансу
+    // Обчислення різниці
     const delta = newBalance - user.balance;
-    user.balanceHistory.push({
-      amount: delta,
-      newBalance,
-      changedBy: userId,
-      reason: reason || "Зміна балансу",
-    });
+
+    // Оновлення історії балансу
+    await User.updateBalanceHistory(
+      id,
+      {
+        amount: delta,
+        newBalance,
+        changedBy: userId,
+        reason: reason || "Зміна балансу",
+        date: new Date(),
+      },
+      { session }
+    );
 
     // Оновлення балансу
-    user.balance = newBalance;
-    await user.save();
+    await User.updateOne(
+      { _id: id },
+      { $set: { balance: newBalance } },
+      { session }
+    );
 
+    await session.commitTransaction();
+    session.endSession();
     res.json({ message: "Баланс оновлено" });
   } catch (error) {
-    res.status(500).json({ message: "Помилка сервера" });
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ message: "Помилка сервера", error: error.message });
   }
 };
 

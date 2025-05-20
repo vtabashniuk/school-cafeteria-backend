@@ -1,14 +1,19 @@
+import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import User from "../models/User.js";
 import Menu from "../models/Menu.js";
 
 export const createOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const { items, isBeneficiaryOrder } = req.body;
     const studentId = req.user.id;
 
-    const student = await User.findById(studentId);
+    const student = await User.findById(studentId).session(session);
     if (!student) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Користувача не знайдено" });
     }
 
@@ -21,7 +26,7 @@ export const createOrder = async (req, res) => {
     const todayOrders = await Order.find({
       studentId,
       createdAt: { $gte: todayStart, $lte: todayEnd },
-    });
+    }).session(session);
 
     const hasBeneficiaryOrder = todayOrders.some(
       (order) => order.isBeneficiaryOrder
@@ -33,13 +38,15 @@ export const createOrder = async (req, res) => {
     // Логіка для пільгового замовлення
     if (isBeneficiaryOrder) {
       if (!student.isBeneficiaries) {
-        return res
-          .status(403)
-          .json({
-            message: "Тільки пільговики можуть створювати пільгові замовлення",
-          });
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(403).json({
+          message: "Тільки пільговики можуть створювати пільгові замовлення",
+        });
       }
       if (hasBeneficiaryOrder) {
+        await session.abortTransaction();
+        session.endSession();
         return res
           .status(400)
           .json({ message: "Пільгове замовлення на сьогодні вже створено" });
@@ -51,12 +58,16 @@ export const createOrder = async (req, res) => {
         total: 0,
         isBeneficiaryOrder: true,
       });
-      await order.save();
+      await order.save({ session });
+      await session.commitTransaction();
+      session.endSession();
       return res.status(201).json(order);
     }
 
     // Логіка для звичайного замовлення
     if (hasRegularOrder) {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(400)
         .json({ message: "Звичайне замовлення на сьогодні вже створено" });
@@ -64,9 +75,13 @@ export const createOrder = async (req, res) => {
 
     // Перевірка страв
     const itemIds = items.map((item) => item.dishId);
-    const menuItems = await Menu.find({ _id: { $in: itemIds } });
+    const menuItems = await Menu.find({ _id: { $in: itemIds } }).session(
+      session
+    );
 
     if (menuItems.length !== items.length) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Деякі страви не знайдено" });
     }
 
@@ -78,6 +93,8 @@ export const createOrder = async (req, res) => {
       });
 
       if (hasNonFreeSaleItems) {
+        await session.abortTransaction();
+        session.endSession();
         return res.status(400).json({
           message: "Пільговики можуть замовляти лише страви з вільного продажу",
         });
@@ -105,23 +122,36 @@ export const createOrder = async (req, res) => {
       .filter(Boolean);
 
     if (orderItems.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Не вибрано жодної страви" });
     }
 
     // Перевірка балансу
     if (student.balance - total < -200) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Недостатньо коштів" });
     }
 
-    // Віднімаємо кошти
-    student.balance -= total;
-    student.balanceHistory.push({
-      amount: -total,
-      newBalance: student.balance,
-      changedBy: student._id,
-      reason: `Замовлення - ${new Date().toLocaleDateString("uk-UA")}`,
-    });
-    await student.save();
+    // Оновлення балансу та історії
+    const newBalance = student.balance - total;
+    await User.updateBalanceHistory(
+      studentId,
+      {
+        amount: -total,
+        newBalance,
+        changedBy: student._id,
+        reason: `Замовлення - ${new Date().toLocaleDateString("uk-UA")}`,
+        date: new Date(),
+      },
+      { session }
+    );
+    await User.updateOne(
+      { _id: studentId },
+      { $set: { balance: newBalance } },
+      { session }
+    );
 
     // Створюємо замовлення
     const order = new Order({
@@ -131,25 +161,34 @@ export const createOrder = async (req, res) => {
       isBeneficiaryOrder: false,
     });
 
-    await order.save();
+    await order.save({ session });
+    await session.commitTransaction();
+    session.endSession();
     res.status(201).json(order);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Помилка сервера" });
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ message: "Помилка сервера", error: error.message });
   }
 };
 
 export const deleteOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const orderId = req.params.id;
     const studentId = req.user.id;
 
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(orderId).session(session);
     if (!order) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Замовлення не знайдено" });
     }
 
     if (order.studentId.toString() !== studentId) {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(403)
         .json({ message: "Немає доступу до видалення цього замовлення" });
@@ -157,47 +196,65 @@ export const deleteOrder = async (req, res) => {
 
     // Повернення коштів на баланс користувача, якщо це звичайне замовлення
     if (!order.isBeneficiaryOrder) {
-      const student = await User.findById(order.studentId);
-      student.balance += order.total;
-      student.balanceHistory.push({
-        amount: order.total,
-        newBalance: student.balance,
-        changedBy: student._id,
-        reason: `Відмова від замовлення - ${new Date().toLocaleDateString(
-          "uk-UA"
-        )}`,
-      });
-      await student.save();
+      const student = await User.findById(order.studentId).session(session);
+      const newBalance = student.balance + order.total;
+      await User.updateBalanceHistory(
+        studentId,
+        {
+          amount: order.total,
+          newBalance,
+          changedBy: student._id,
+          reason: `Відмова від замовлення - ${new Date().toLocaleDateString(
+            "uk-UA"
+          )}`,
+          date: new Date(),
+        },
+        { session }
+      );
+      await User.updateOne(
+        { _id: studentId },
+        { $set: { balance: newBalance } },
+        { session }
+      );
     }
 
-    await order.deleteOne();
+    await order.deleteOne({ session });
+    await session.commitTransaction();
+    session.endSession();
     res.status(200).json({ message: "Замовлення видалено успішно" });
   } catch (error) {
-    console.error(error);
-    res
-      .status(500)
-      .json({ message: "Щось пішло не так при видаленні замовлення" });
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ message: "Помилка сервера", error: error.message });
   }
 };
 
 export const updateOrder = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const orderId = req.params.id;
     const { items } = req.body;
     const studentId = req.user.id;
 
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(orderId).session(session);
     if (!order) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Замовлення не знайдено" });
     }
 
     if (order.studentId.toString() !== studentId) {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(403)
         .json({ message: "Немає доступу до редагування цього замовлення" });
     }
 
     if (order.isBeneficiaryOrder) {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(400)
         .json({ message: "Пільгове замовлення не можна редагувати" });
@@ -207,20 +264,26 @@ export const updateOrder = async (req, res) => {
     const filteredItems = items.filter((item) => item.quantity > 0);
 
     if (filteredItems.length === 0) {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(400)
         .json({ message: "Замовлення не може бути порожнім" });
     }
 
     const itemIds = filteredItems.map((item) => item.dishId);
-    const menuItems = await Menu.find({ _id: { $in: itemIds } });
+    const menuItems = await Menu.find({ _id: { $in: itemIds } }).session(
+      session
+    );
 
     if (menuItems.length !== filteredItems.length) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ message: "Деякі страви не знайдено" });
     }
 
     // Перевірка для пільговиків: лише isFreeSale: true
-    const student = await User.findById(studentId);
+    const student = await User.findById(studentId).session(session);
     if (student.isBeneficiaries) {
       const hasNonFreeSaleItems = filteredItems.some((item) => {
         const dish = menuItems.find((d) => d._id.toString() === item.dishId);
@@ -228,6 +291,8 @@ export const updateOrder = async (req, res) => {
       });
 
       if (hasNonFreeSaleItems) {
+        await session.abortTransaction();
+        session.endSession();
         return res.status(400).json({
           message: "Пільговики можуть замовляти лише страви з вільного продажу",
         });
@@ -249,6 +314,8 @@ export const updateOrder = async (req, res) => {
     });
 
     if (!student) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(404).json({ message: "Користувача не знайдено" });
     }
 
@@ -256,30 +323,44 @@ export const updateOrder = async (req, res) => {
     const newBalance = student.balance + refund - newTotal;
 
     if (newBalance < -200) {
+      await session.abortTransaction();
+      session.endSession();
       return res
         .status(400)
         .json({ message: "Недостатньо коштів для оновлення замовлення" });
     }
 
-    student.balance = newBalance;
-    student.balanceHistory.push({
-      amount: order.total - newTotal, // наприклад: -50 + 40 = -10 (баланс зменшився на 10)
-      newBalance: student.balance,
-      changedBy: student._id,
-      reason: `Редагування замовлення - ${new Date().toLocaleDateString(
-        "uk-UA"
-      )}`,
-    });
-    await student.save();
+    // Оновлення балансу та історії
+    await User.updateBalanceHistory(
+      studentId,
+      {
+        amount: order.total - newTotal,
+        newBalance,
+        changedBy: student._id,
+        reason: `Редагування замовлення - ${new Date().toLocaleDateString(
+          "uk-UA"
+        )}`,
+        date: new Date(),
+      },
+      { session }
+    );
+    await User.updateOne(
+      { _id: studentId },
+      { $set: { balance: newBalance } },
+      { session }
+    );
 
     order.items = updatedItems;
     order.total = newTotal;
-    await order.save();
+    await order.save({ session });
 
+    await session.commitTransaction();
+    session.endSession();
     res.json(order);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Помилка сервера" });
+    await session.abortTransaction();
+    session.endSession();
+    res.status(500).json({ message: "Помилка сервера", error: error.message });
   }
 };
 
@@ -324,7 +405,6 @@ export const getTodayStudentOrders = async (req, res) => {
 
     res.json(orders);
   } catch (error) {
-    console.error(error);
     res
       .status(500)
       .json({ message: "Помилка сервера при отриманні замовлень за сьогодні" });

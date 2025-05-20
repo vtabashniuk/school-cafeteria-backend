@@ -19,13 +19,13 @@ const userSchema = new mongoose.Schema(
     isBeneficiaries: { type: Boolean, default: false },
     balanceHistory: [
       {
-        amount: { type: Number }, // на скільки змінився баланс
-        newBalance: { type: Number }, // новий баланс після операції
+        amount: { type: Number },
+        newBalance: { type: Number },
         changedBy: {
           type: mongoose.Schema.Types.ObjectId,
           ref: "User",
         },
-        reason: { type: String }, // необов'язково: "оплата замовлення", "поповнення", "виправлення" тощо
+        reason: { type: String },
         date: {
           type: Date,
           default: Date.now,
@@ -35,6 +35,32 @@ const userSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Додаємо індекс на balanceHistory.date для прискорення запитів
+userSchema.index({ "balanceHistory.date": 1 });
+
+// Метод для додавання запису до balanceHistory з обмеженням 5 років
+userSchema.statics.updateBalanceHistory = async function (
+  userId,
+  newEntry,
+  options = {}
+) {
+  const fiveYearsAgo = new Date();
+  fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+  // Виконуємо $pull для видалення старих записів
+  await this.updateOne(
+    { _id: userId },
+    { $pull: { balanceHistory: { date: { $lt: fiveYearsAgo } } } },
+    options
+  );
+
+  // Виконуємо $push для додавання нового запису
+  await this.updateOne(
+    { _id: userId },
+    { $push: { balanceHistory: newEntry } },
+    options
+  );
+};
 
 const User = mongoose.model("User", userSchema);
 export default User;

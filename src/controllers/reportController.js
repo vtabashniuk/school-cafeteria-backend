@@ -1,6 +1,6 @@
 import Order from "../models/Order.js";
 import User from "../models/User.js";
-// import Menu from "../models/Menu.js";
+import Menu from "../models/Menu.js";
 
 const formatDate = (date) => {
   const day = String(date.getDate()).padStart(2, "0");
@@ -40,7 +40,7 @@ export const getTodayOrdersReportByGroup = async (req, res) => {
         lastName: student.lastName,
         firstName: student.firstName,
         group: student.group,
-        date: formatDate(order.date), // Використовуємо формат DD.MM.YYYY
+        date: formatDate(order.date),
         total: order.total,
         dishes,
       };
@@ -48,7 +48,6 @@ export const getTodayOrdersReportByGroup = async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Помилка сервера" });
   }
 };
@@ -111,7 +110,6 @@ export const getPeriodOrdersReportByGroup = async (req, res) => {
       ordersByDate,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Помилка сервера" });
   }
 };
@@ -173,7 +171,7 @@ export const getTodayOrdersReportForCafeteriaByGroup = async (req, res) => {
     });
 
     const report = {
-      date: formatDate(today), // Використовуємо формат DD.MM.YYYY
+      date: formatDate(today),
       beneficiaryOrders: totalBeneficiaryOrders,
       freeSaleDishes: Object.keys(freeSaleDishes).map((dishName) => ({
         dishName,
@@ -192,7 +190,6 @@ export const getTodayOrdersReportForCafeteriaByGroup = async (req, res) => {
 
     res.json(report);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Помилка сервера" });
   }
 };
@@ -265,7 +262,7 @@ export const getPeriodOrdersReportForCafeteriaByGroup = async (req, res) => {
     });
 
     const report = {
-      dateRange: [formatDate(startDate), formatDate(endDate)], // Використовуємо формат DD.MM.YYYY
+      dateRange: [formatDate(startDate), formatDate(endDate)],
       beneficiaryOrders: totalBeneficiaryOrders,
       freeSaleDishes: Object.keys(freeSaleDishes).map((dishName) => ({
         dishName,
@@ -284,7 +281,6 @@ export const getPeriodOrdersReportForCafeteriaByGroup = async (req, res) => {
 
     res.json(report);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Помилка сервера" });
   }
 };
@@ -347,7 +343,6 @@ export const getBalanceHistoryReportByGroup = async (req, res) => {
       balanceHistoryByDate,
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ message: "Помилка сервера" });
   }
 };
