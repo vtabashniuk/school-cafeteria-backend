@@ -5,6 +5,11 @@ import {
   getTodayOrdersReportForCafeteriaByGroup,
   getPeriodOrdersReportForCafeteriaByGroup,
   getBalanceHistoryReportByGroup,
+  getStudentTodayOrderReport,
+  getStudentPeriodOrdersReport,
+  getStudentPeriodAllOrdersReport,
+  getStudentBalanceHistoryReport,
+  getStudentAllBalanceHistoryReport,
 } from "../controllers/reportController.js";
 import { protect } from "../middlewares/authMiddleware.js";
 import { checkRole } from "../middlewares/roleMiddleware.js";
@@ -12,34 +17,64 @@ import { checkRole } from "../middlewares/roleMiddleware.js";
 const router = express.Router();
 
 router.get(
-  "/today-report-by-group",
+  "/curator/today-report-by-group",
   protect,
   checkRole(["curator"]),
   getTodayOrdersReportByGroup
 );
 router.get(
-  "/period-report-by-group",
+  "/curator/period-report-by-group",
   protect,
   checkRole(["curator"]),
   getPeriodOrdersReportByGroup
 );
 router.get(
-  "/today-report-for-cafeteria",
+  "/curator/today-report-for-cafeteria",
   protect,
   checkRole(["curator"]),
   getTodayOrdersReportForCafeteriaByGroup
 );
 router.get(
-  "/period-report-for-cafeteria",
+  "/curator/period-report-for-cafeteria",
   protect,
   checkRole(["curator"]),
   getPeriodOrdersReportForCafeteriaByGroup
 );
 router.get(
-  "/balance-history-report-by-group",
+  "/curator/balance-history-report-by-group",
   protect,
   checkRole(["curator"]),
   getBalanceHistoryReportByGroup
+);
+router.get(
+  "/student/today-order-report",
+  protect,
+  checkRole(["student"]),
+  getStudentTodayOrderReport
+);
+router.get(
+  "/student/period-orders-report",
+  protect,
+  checkRole(["student"]),
+  getStudentPeriodOrdersReport
+);
+router.get(
+  "/student/period-all-orders-report",
+  protect,
+  checkRole(["student"]),
+  getStudentPeriodAllOrdersReport
+);
+router.get(
+  "/student/balance-history-report",
+  protect,
+  checkRole(["student"]),
+  getStudentBalanceHistoryReport
+);
+router.get(
+  "/student/all-balance-history-report",
+  protect,
+  checkRole(["student"]),
+  getStudentAllBalanceHistoryReport
 );
 
 export default router;

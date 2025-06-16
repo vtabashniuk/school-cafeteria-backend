@@ -364,19 +364,6 @@ export const updateOrder = async (req, res) => {
   }
 };
 
-// Отримання всіх замовлень (куратор)
-export const getAllOrders = async (req, res) => {
-  try {
-    const orders = await Order.find().populate(
-      "studentId",
-      "firstName lastName"
-    );
-    res.json(orders);
-  } catch (error) {
-    res.status(500).json({ message: "Помилка сервера" });
-  }
-};
-
 // Отримання замовлень конкретного учня (учень)
 export const getStudentOrders = async (req, res) => {
   try {

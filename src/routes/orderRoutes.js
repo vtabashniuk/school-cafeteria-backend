@@ -2,7 +2,6 @@ import express from "express";
 import {
   createOrder,
   deleteOrder,
-  getAllOrders,
   getTodayStudentOrders,
   getStudentOrders,
   updateOrder,
@@ -13,7 +12,6 @@ import { checkRole } from "../middlewares/roleMiddleware.js";
 const router = express.Router();
 
 router.post("/", protect, checkRole(["student"]), createOrder);
-router.get("/", protect, checkRole(["curator"]), getAllOrders);
 router.put("/:id", protect, checkRole(["student"]), updateOrder);
 router.delete("/:id", protect, checkRole(["student"]), deleteOrder);
 router.get("/my", protect, checkRole(["student"]), getStudentOrders);
