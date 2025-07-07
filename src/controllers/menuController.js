@@ -1,10 +1,24 @@
 import Menu from "../models/Menu.js";
 
+// 🔧 Утиліта для нормалізації дати до UTC 00:00
+const normalizeDateToUTC = (inputDate) => {
+  const date = new Date(inputDate);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
+
 // Додавання страви в меню (тільки куратори)
 export const createFreeSaleDish = async (req, res) => {
   try {
     const { date, dishName, price, isFreeSale } = req.body;
-    const newDish = new Menu({ date, dishName, price, isFreeSale });
+
+    const newDish = new Menu({
+      date: normalizeDateToUTC(date),
+      dishName,
+      price,
+      isFreeSale,
+    });
+
     await newDish.save();
 
     res.status(201).json({ message: "Страва додана до меню!", item: newDish });
@@ -17,15 +31,18 @@ export const createFreeSaleDish = async (req, res) => {
 
 export const createDish = async (req, res) => {
   try {
-    const dishes = req.body; // Масив страв
+    const dishes = req.body;
     const newDishes = [];
 
-    // Перебираємо масив страв і додаємо кожну страву в базу
     for (let i = 0; i < dishes.length; i++) {
       const { date, dishName, price } = dishes[i];
-      const newDish = new Menu({ date, dishName, price });
-      await newDish.save(); // Зберігаємо страву в базу
-      newDishes.push(newDish); // Додаємо нову страву до масиву для відповіді
+      const newDish = new Menu({
+        date: normalizeDateToUTC(date),
+        dishName,
+        price,
+      });
+      await newDish.save();
+      newDishes.push(newDish);
     }
 
     res
@@ -48,23 +65,17 @@ export const getMenu = async (req, res) => {
   }
 };
 
-// Отримання меню для сьогоднішнього дня
+// ✅ Отримання меню для сьогоднішнього дня (по UTC)
 export const getMenuForToday = async (req, res) => {
   try {
-    // Отримуємо поточну дату без часу
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Обнуляємо час
+    const now = new Date();
+    const startOfDayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    const endOfDayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
-    // Створюємо дату на наступний день
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-
-    // Запит до MongoDB для отримання страв на сьогодні
     const todayMenu = await Menu.find({
-      date: { $gte: today, $lt: tomorrow },
+      date: { $gte: startOfDayUTC, $lt: endOfDayUTC },
     });
 
-    // Відправляємо результат
     res.status(200).json(todayMenu);
   } catch (error) {
     console.error(error);
@@ -78,6 +89,7 @@ export const updateDish = async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
     const userRole = req.user.role;
+
     const dishToUpdate = await Menu.findById(id);
     if (!dishToUpdate) {
       return res.status(404).json({ message: "Страву не знайдено" });
@@ -89,7 +101,11 @@ export const updateDish = async (req, res) => {
       });
     }
 
-    // Оновлення страви
+    // Якщо оновлюється дата — нормалізуємо
+    if (updates.date) {
+      updates.date = normalizeDateToUTC(updates.date);
+    }
+
     Object.assign(dishToUpdate, updates);
     await dishToUpdate.save();
 
