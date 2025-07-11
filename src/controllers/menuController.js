@@ -1,10 +1,15 @@
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
 import Menu from "../models/Menu.js";
 
 // 🔧 Утиліта для нормалізації дати до UTC 00:00
 const normalizeDateToUTC = (inputDate) => {
-  const date = new Date(inputDate);
-  date.setUTCHours(0, 0, 0, 0);
-  return date;
+  return dayjs(inputDate).startOf("day").utc().toDate();
 };
 
 // Додавання страви в меню (тільки куратори)
@@ -68,12 +73,16 @@ export const getMenu = async (req, res) => {
 // ✅ Отримання меню для сьогоднішнього дня (по UTC)
 export const getMenuForToday = async (req, res) => {
   try {
-    const now = new Date();
-    const startOfDayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-    const endOfDayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+    // Локальний час у Києві
+    const nowKyiv = dayjs().tz("Europe/Kyiv");
+    const startOfDayKyiv = nowKyiv.startOf("day").toDate();
+    const endOfDayKyiv = nowKyiv.endOf("day").toDate();
+
+    console.log("Kyiv startOfDay:", startOfDayKyiv.toISOString());
+    console.log("Kyiv endOfDay:", endOfDayKyiv.toISOString());
 
     const todayMenu = await Menu.find({
-      date: { $gte: startOfDayUTC, $lt: endOfDayUTC },
+      date: { $gte: startOfDayKyiv, $lte: endOfDayKyiv },
     });
 
     res.status(200).json(todayMenu);

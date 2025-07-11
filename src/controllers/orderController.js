@@ -2,6 +2,12 @@ import mongoose from "mongoose";
 import Order from "../models/Order.js";
 import User from "../models/User.js";
 import Menu from "../models/Menu.js";
+import dayjs from "dayjs";
+import utc from 'dayjs/plugin/utc.js';
+import timezone from 'dayjs/plugin/timezone.js';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export const createOrder = async (req, res) => {
   const session = await mongoose.startSession();
@@ -18,10 +24,8 @@ export const createOrder = async (req, res) => {
     }
 
     // Перевірка замовлень за сьогодні
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    const todayStart = dayjs().tz("Europe/Kyiv").startOf("day").toDate();
+    const todayEnd = dayjs().tz("Europe/Kyiv").endOf("day").toDate();
 
     const todayOrders = await Order.find({
       studentId,
@@ -142,8 +146,10 @@ export const createOrder = async (req, res) => {
         amount: -total,
         newBalance,
         changedBy: student._id,
-        reason: `Замовлення - ${new Date().toLocaleDateString("uk-UA")}`,
-        date: new Date(),
+        reason: `Замовлення - ${dayjs()
+          .tz("Europe/Kyiv")
+          .format("DD.MM.YYYY")}`,
+        date: dayjs().tz("Europe/Kyiv").toDate(),
       },
       { session }
     );
@@ -204,10 +210,10 @@ export const deleteOrder = async (req, res) => {
           amount: order.total,
           newBalance,
           changedBy: student._id,
-          reason: `Відмова від замовлення - ${new Date().toLocaleDateString(
-            "uk-UA"
-          )}`,
-          date: new Date(),
+          reason: `Відмова від замовлення - ${dayjs()
+            .tz("Europe/Kyiv")
+            .format("DD.MM.YYYY")}`,
+          date: dayjs().tz("Europe/Kyiv").toDate(),
         },
         { session }
       );
@@ -337,10 +343,10 @@ export const updateOrder = async (req, res) => {
         amount: order.total - newTotal,
         newBalance,
         changedBy: student._id,
-        reason: `Редагування замовлення - ${new Date().toLocaleDateString(
-          "uk-UA"
-        )}`,
-        date: new Date(),
+        reason: `Редагування замовлення - ${dayjs()
+          .tz("Europe/Kyiv")
+          .format("DD.MM.YYYY")}`,
+        date: dayjs().tz("Europe/Kyiv").toDate(),
       },
       { session }
     );
@@ -376,14 +382,15 @@ export const getStudentOrders = async (req, res) => {
 
 // Отримання замовлення конкретного учня (учень) за поточну дату
 export const getTodayStudentOrders = async (req, res) => {
+
   try {
     const studentId = req.user.id;
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = dayjs().tz("Europe/Kyiv").startOf("day").toDate();
+    const todayEnd = dayjs().tz("Europe/Kyiv").endOf("day").toDate();
 
-    const todayEnd = new Date();
-    todayEnd.setHours(23, 59, 59, 999);
+    console.log("todayStart:", todayStart.toISOString());
+    console.log("todayEnd:  ", todayEnd.toISOString());
 
     const orders = await Order.find({
       studentId,
