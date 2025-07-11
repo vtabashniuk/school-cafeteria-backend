@@ -389,9 +389,6 @@ export const getTodayStudentOrders = async (req, res) => {
     const todayStart = dayjs().tz("Europe/Kyiv").startOf("day").toDate();
     const todayEnd = dayjs().tz("Europe/Kyiv").endOf("day").toDate();
 
-    console.log("todayStart:", todayStart.toISOString());
-    console.log("todayEnd:  ", todayEnd.toISOString());
-
     const orders = await Order.find({
       studentId,
       createdAt: { $gte: todayStart, $lte: todayEnd },

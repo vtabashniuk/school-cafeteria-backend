@@ -77,10 +77,7 @@ export const getMenuForToday = async (req, res) => {
     const nowKyiv = dayjs().tz("Europe/Kyiv");
     const startOfDayKyiv = nowKyiv.startOf("day").toDate();
     const endOfDayKyiv = nowKyiv.endOf("day").toDate();
-
-    console.log("Kyiv startOfDay:", startOfDayKyiv.toISOString());
-    console.log("Kyiv endOfDay:", endOfDayKyiv.toISOString());
-
+    
     const todayMenu = await Menu.find({
       date: { $gte: startOfDayKyiv, $lte: endOfDayKyiv },
     });
