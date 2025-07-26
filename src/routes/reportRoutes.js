@@ -5,6 +5,8 @@ import {
   getTodayOrdersReportForCafeteriaByGroup,
   getPeriodOrdersReportForCafeteriaByGroup,
   getBalanceHistoryReportByGroup,
+  getDebtorsReport,
+  getGroupBalanceSnapshot,
   getStudentTodayOrderReport,
   getStudentPeriodOrdersReport,
   getStudentPeriodAllOrdersReport,
@@ -45,6 +47,18 @@ router.get(
   protect,
   checkRole(["curator"]),
   getBalanceHistoryReportByGroup
+);
+router.get(
+  "/curator/group-balance-snapshot",
+  protect,
+  checkRole(["curator"]),
+  getGroupBalanceSnapshot
+);
+router.get(
+  "/curator/debtors-report",
+  protect,
+  checkRole(["curator"]),
+  getDebtorsReport
 );
 router.get(
   "/student/today-order-report",

@@ -356,6 +356,73 @@ export const getBalanceHistoryReportByGroup = async (req, res) => {
   }
 };
 
+// Звіт по залишку котів по групі
+export const getGroupBalanceSnapshot = async (req, res) => {
+  try {
+    const { group } = req.query;
+
+    if (!group) {
+      return res.status(400).json({ message: "Необхідно вказати групу" });
+    }
+
+    // Знаходимо активних студентів цієї групи
+    const students = await User.find({
+      role: "student",
+      group,
+      isActive: true,
+    })
+      .select("firstName lastName balance")
+      .lean();
+
+    // Сортування за прізвищем
+    students.sort((a, b) => a.lastName.localeCompare(b.lastName, "uk"));
+
+    const total = students.reduce((sum, s) => sum + s.balance, 0);
+
+    res.json({
+      report: students,
+      total,
+    });
+  } catch (error) {
+    console.error("Помилка при формуванні звіту по залишках:", error);
+    res.status(500).json({ message: "Помилка сервера" });
+  }
+};
+
+//Звіт про боржників по групі
+export const getDebtorsReport = async (req, res) => {
+  try {
+    const { group } = req.query;
+
+    if (!group) {
+      return res.status(400).json({ message: "Необхідно вказати групу" });
+    }
+
+    // Знаходимо студентів цієї групи з негативним балансом
+    const debtors = await User.find({
+      role: "student",
+      group,
+      isActive: true,
+      balance: { $lt: 0 },
+    })
+      .select("firstName lastName balance")
+      .lean();
+
+    // Сортування за прізвищем
+    debtors.sort((a, b) => a.lastName.localeCompare(b.lastName, "uk"));
+
+    const totalDebt = debtors.reduce((sum, s) => sum + s.balance, 0);
+
+    res.json({
+      report: debtors,
+      totalDebt,
+    });
+  } catch (error) {
+    console.error("Помилка при формуванні звіту по боржникам:", error);
+    res.status(500).json({ message: "Помилка сервера" });
+  }
+}
+
 // Звіт по сьогоднішньому замовленню студента
 export const getStudentTodayOrderReport = async (req, res) => {
   try {
