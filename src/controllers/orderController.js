@@ -401,3 +401,12 @@ export const getTodayStudentOrders = async (req, res) => {
       .json({ message: "Помилка сервера при отриманні замовлень за сьогодні" });
   }
 };
+
+export const getUsedDishIds = async (req, res) => {
+  try {
+    const usedDishes = await Order.distinct("items.dishId");
+    res.json(usedDishes);
+  } catch (error) {
+    res.status(500).json({ message: "Помилка сервера" });
+  }
+};

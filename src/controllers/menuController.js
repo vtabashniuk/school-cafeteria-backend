@@ -1,11 +1,11 @@
+import Order from "../models/Order.js";
+import Menu from "../models/Menu.js";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
-
-import Menu from "../models/Menu.js";
 
 // 🔧 Утиліта для нормалізації дати до UTC 00:00
 const normalizeDateToUTC = (inputDate) => {
@@ -77,7 +77,7 @@ export const getMenuForToday = async (req, res) => {
     const nowKyiv = dayjs().tz("Europe/Kyiv");
     const startOfDayKyiv = nowKyiv.startOf("day").toDate();
     const endOfDayKyiv = nowKyiv.endOf("day").toDate();
-    
+
     const todayMenu = await Menu.find({
       date: { $gte: startOfDayKyiv, $lte: endOfDayKyiv },
     });
@@ -125,6 +125,17 @@ export const updateDish = async (req, res) => {
 export const deleteDish = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log("id to delete: ", id)
+    
+    // Перевіряємо, чи ця страва є в замовленнях
+    const dishInOrders = await Order.exists({ "items.dishId": id });
+    if (dishInOrders) {
+      return res.status(400).json({
+        message: "Неможливо видалити — страва вже використовується у замовленнях",
+      });
+    }
+
+    // Видалення страви
     await Menu.findByIdAndDelete(id);
     res.json({ message: "Страву видалено" });
   } catch (error) {

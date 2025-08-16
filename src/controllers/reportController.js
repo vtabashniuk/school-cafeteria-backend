@@ -247,6 +247,11 @@ export const getPeriodOrdersReportForCafeteriaByGroup = async (req, res) => {
       }
 
       order.items.forEach((item) => {
+        if (!item.dishId) {
+          console.warn("Замовлення містить item без dishId:", item);
+          return; // пропускаємо цей item
+        }
+
         const dish = item.dishId.dishName;
         const price = item.price;
         const quantity = item.quantity;
@@ -421,7 +426,7 @@ export const getDebtorsReport = async (req, res) => {
     console.error("Помилка при формуванні звіту по боржникам:", error);
     res.status(500).json({ message: "Помилка сервера" });
   }
-}
+};
 
 // Звіт по сьогоднішньому замовленню студента
 export const getStudentTodayOrderReport = async (req, res) => {
