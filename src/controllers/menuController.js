@@ -124,9 +124,7 @@ export const updateDish = async (req, res) => {
 // Видалення страви (тільки куратори)
 export const deleteDish = async (req, res) => {
   try {
-    const { id } = req.params;
-    console.log("id to delete: ", id)
-    
+    const { id } = req.params;    
     // Перевіряємо, чи ця страва є в замовленнях
     const dishInOrders = await Order.exists({ "items.dishId": id });
     if (dishInOrders) {
