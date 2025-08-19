@@ -107,11 +107,6 @@ export const updateDish = async (req, res) => {
       });
     }
 
-    // Якщо оновлюється дата — нормалізуємо
-    if (updates.date) {
-      updates.date = normalizeDateToUTC(updates.date);
-    }
-
     Object.assign(dishToUpdate, updates);
     await dishToUpdate.save();
 
